@@ -25,7 +25,8 @@
   "homepage": "https://github.com/mudrd8mz/node-moodle-client#readme",
   "dependencies": {
     "form-urlencoded": "^2.0.4",
-    "node-fetch": "^1.7.3"
+    "node-fetch": "^1.7.3",
+    "querystring": "^0.2.0"
   },
   "devDependencies": {
     "mocha": "^2.3.3"
