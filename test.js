@@ -39,21 +39,33 @@ var server = http.createServer(function(request, response) {
 
         if (uri.pathname === "/moodle/webservice/rest/server.php") {
             if (getparams.wsfunction === "get_no_data") {
-                response.write(JSON.stringify(null));
+                response.write(JSON.stringify({
+                    result: null
+                }));
             } else if (getparams.wsfunction === "sum_get") {
-                response.write(JSON.stringify(parseInt(getparams.a, 10) + parseInt(getparams.b, 10)));
+                response.write(JSON.stringify({
+                    result: parseInt(getparams.a, 10) + parseInt(getparams.b, 10)
+                }));
             } else if (postparams.wsfunction === "sum_post") {
-                response.write(JSON.stringify(parseInt(postparams.a, 10) + parseInt(postparams.b, 10)));
-            } else if (getparams.wsfunction === "complex_args") {
-                if (getparams["a[0]"] == 0
-                    && getparams["a[1]"] == "b"
-                    && getparams["a[2]"] == "2"
-                    && getparams["c[0][x]"] == "1"
-                    && getparams["c[0][y]"] == "2"
-                    && getparams["c[1][x]"] == "3"
-                    && getparams["c[1][y]"] == "4"
+                response.write(JSON.stringify({
+                    result: parseInt(postparams.a, 10) + parseInt(postparams.b, 10)
+                }));
+            } else if (postparams.wsfunction === "complex_args") {
+                if (postparams["a[0]"] == 0
+                    && postparams["a[1]"] == "b"
+                    && postparams["a[2]"] == "2"
+                    && postparams["c[0][x]"] == "1"
+                    && postparams["c[0][y]"] == "2"
+                    && postparams["c[1][x]"] == "3"
+                    && postparams["c[1][y]"] == "4"
                 ) {
-                    response.write(JSON.stringify("ok"));
+                    response.write(JSON.stringify({
+                        result: "ok"
+                    }));
+                } else {
+                    response.write(JSON.stringify({
+                        result: "unrecognized"
+                    }));                    
                 }
             } else {
                 response.write(JSON.stringify({executed: getparams.wsfunction}));
@@ -143,6 +155,7 @@ describe("moodle-client method execution", function() {
         it("should allow execution of methods without parameters", function() {
             return init.then(function(client) {
                 return client.call({wsfunction: "get_status"}).then(function(data) {
+                    console.log('data', data)
                     assert.equal(data.executed, "get_status");
                 });
             });
@@ -151,7 +164,7 @@ describe("moodle-client method execution", function() {
         it("should allow execution of methods returning no data", function() {
             return init.then(function(client) {
                 return client.call({wsfunction: "get_no_data"}).then(function(data) {
-                    assert.strictEqual(data, null);
+                    assert.strictEqual(data.result, null);
                 });
             });
         });
@@ -163,7 +176,7 @@ describe("moodle-client method execution", function() {
                     args: {a: 2, b: 3},
                     method: "GET"
                 }).then(function(data) {
-                    assert.equal(data, 5);
+                    assert.equal(data.result, 5);
                 });
             });
         });
@@ -174,7 +187,7 @@ describe("moodle-client method execution", function() {
                     wsfunction: "sum_get",
                     args: {a: 2, b: 3}
                 }).then(function(data) {
-                    assert.equal(data, 5);
+                    assert.equal(data.result, 5);
                 });
             });
         });
@@ -186,7 +199,7 @@ describe("moodle-client method execution", function() {
                     args: {a: 2, b: 3},
                     method: "POST"
                 }).then(function(data) {
-                    assert.equal(data, 5);
+                    assert.equal(data.result, 5);
                 });
             });
         });
@@ -195,6 +208,7 @@ describe("moodle-client method execution", function() {
             return init.then(function(client) {
                 return client.call({
                     wsfunction: "complex_args",
+                    method: "POST",
                     args: {
                         a: [0, "b", 2],
                         c: [
@@ -210,7 +224,7 @@ describe("moodle-client method execution", function() {
                     }
 
                 }).then(function(data) {
-                    assert.equal(data, "ok");
+                    assert.equal(data.result, "ok");
                 });
             })
         });

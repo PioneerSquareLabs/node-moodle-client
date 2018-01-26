@@ -12,9 +12,9 @@
  */
 
 "use strict";
-
-var request_promise = require("request-promise");
-var Promise = require("bluebird");
+const querystring = require('querystring')
+const fetch = require('node-fetch')
+const encodeFormData = require('form-urlencoded');
 
 module.exports = {
     /**
@@ -137,7 +137,7 @@ client.prototype.call = function (options) {
     }
 
     if ("args" in options) {
-        args = options.args;
+        args = Object.assign({}, options.args);
     }
 
     if ("settings" in options) {
@@ -146,26 +146,21 @@ client.prototype.call = function (options) {
 
     self.logger.debug("[call] calling web service function %s", wsfunction);
 
-    var request_options = {
-        uri: self.wwwroot + "/webservice/rest/server.php",
-        json: true,
-        qs: args,
-        qsStringifyOptions: {
-            arrayFormat: "indices"
-        },
-        strictSSL: self.strictSSL,
-        method: "GET"
-    }
+    args.wstoken = self.token;
+    args.wsfunction = wsfunction;
+    args.moodlewsrestformat = "json";
 
-    request_options.qs.wstoken = self.token;
-    request_options.qs.wsfunction = wsfunction;
-    request_options.qs.moodlewsrestformat = "json";
+    var request_options = {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        method: 'GET',
+        Accept: 'application/json'
+    }
 
     if ("raw" in settings) {
         // False by default. If true, the format_text() is not applied to description/summary/textarea.
         // Instead, the raw content from the DB is returned.
         // Requires moodle 2.3 and higher.
-        request_options.qs.moodlewssettingraw = settings.raw;
+        args.moodlewssettingraw = settings.raw;
     }
 
     if ("fileurl" in settings) {
@@ -173,30 +168,36 @@ client.prototype.call = function (options) {
         // http://xxxx/webservice/pluginfile.php/yyyyyyyy.
         // If false, the raw file url content from the DB is returned (e.g. @@PLUGINFILE@@).
         // Requires moodle 2.3 and higher.
-        request_options.qs.moodlewssettingfileurl = settings.fileurl;
+        args.moodlewssettingfileurl = settings.fileurl;
     }
 
     if ("filter" in settings) {
         // False by default. If true, the function will apply filter during format_text().
         // Requires moodle 2.3 and higher.
-        request_options.qs.moodlewssettingfilter = settings.filter;
+        args.moodlewssettingfilter = settings.filter;
     }
 
-    if ("method" in options) {
+    var uri = `${self.wwwroot}/webservice/rest/server.php`
+
+    if ("method" in options) { //>>>???
         if (options.method === "GET" || options.method === "get") {
-            // No problem, this is the default defined above.
+            // No problem, this is the default defined above.   
         } else if (options.method === "POST" || options.method === "post") {
             // Provide the arguments as in URL-encoded forms.
             request_options.method = "POST";
-            request_options.form = request_options.qs;
-            delete request_options.qs;
         } else {
             self.logger.error("[call] unsupported request method");
             return Promise.reject("unsupported request method");
         }
     }
 
-    return request_promise(request_options);
+    if (request_options.method === 'GET') {
+        uri += `?${querystring.stringify(args)}`;
+    } else {
+        request_options.body = encodeFormData(args);
+    }
+
+    return fetch(uri, request_options).then(res => res.json());
 };
 
 /**
@@ -217,26 +218,27 @@ client.prototype.download = function (options) {
         return Promise.reject("missing file path to download");
     }
 
+    const uri = self.wwwroot + "/webservice/pluginfile.php"
+
     var request_options = {
-        uri: self.wwwroot + "/webservice/pluginfile.php",
-        qs: {
+        method: "GET",
+        data: {
             token: self.token,
             file: options.filepath,
         },
-        strictSSL: self.strictSSL,
-        method: "GET",
-        encoding: null
+        // strictSSL: self.strictSSL,        
+        // encoding: null
     }
 
     if (options.preview) {
-        request_options.qs.preview = options.preview;
+        request_options.data.preview = options.preview;
     }
 
     if (options.offline) {
-        request_options.qs.offline = 1;
+        request_options.data.offline = 1;
     }
 
-    return request_promise(request_options);
+    return fetch(uri, request_options).then(res => res.json());
 }
 
 /**
@@ -279,14 +281,14 @@ client.prototype.upload = function (options) {
     }
 
     if (options.targetpath) {
-        request_options.qs.filepath = options.targetpath;
+        request_options.data.filepath = options.targetpath;
     }
 
     if (options.itemid) {
-        request_options.qs.itemid = options.itemid;
+        request_options.data.itemid = options.itemid;
     }
 
-    return request_promise(request_options);
+    return fetch(uri, request_options).then(res => res.json());
 }
 
 /**
@@ -298,27 +300,30 @@ client.prototype.upload = function (options) {
 function authenticate_client(client, username, password) {
     return new Promise(function (resolve, reject) {
         client.logger.debug("[init] requesting %s token from %s", client.service, client.wwwroot);
+        
+        const uri = client.wwwroot + "/login/token.php"
+
         var options = {
-            uri: client.wwwroot + "/login/token.php",
-            method: "POST",
-            form: {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            method: 'POST',
+            body: encodeFormData({
                 service: client.service,
                 username: username,
                 password: password
-            },
-            strictSSL: client.strictSSL,
-            json: true
+            })
         }
 
-        request_promise(options)
-            .then(function(res) {
-                if ("token" in res) {
-                    client.token = res.token;
+        // console.log("authenticate_client", uri, options)
+        fetch(uri, options)
+            .then(res => res.json())
+            .then(responseData => {
+                if ("token" in responseData) {
+                    client.token = responseData.token;
                     client.logger.debug("[init] token obtained");
                     resolve(client);
-                } else if ("error" in res) {
-                    client.logger.error("[init] authentication failed: " + res.error);
-                    reject(new Error("authentication failed: " + res.error));
+                } else if ("error" in responseData) {
+                    client.logger.error("[init] authentication failed: " + responseData.error);
+                    reject(new Error("authentication failed: " + responseData.error));
                 } else {
                     client.logger.error("[init] authentication failed: unexpected server response");
                     reject(new Error("authentication failed: unexpected server response"));
