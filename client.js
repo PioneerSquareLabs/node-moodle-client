@@ -15,10 +15,8 @@
 const querystring = require('querystring')
 const encodeFormData = require('form-urlencoded');
 
-var fetch = fetch
-if (typeof(fetch) === 'undefined') {
-    var nodeFetch = 'node-fetch';
-    fetch = require(nodeFetch);
+if (!global.fetch) {
+    global.fetch = eval("require('node-fetch')");
 }
 
 module.exports = {
