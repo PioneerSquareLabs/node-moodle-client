@@ -13,8 +13,13 @@
 
 "use strict";
 const querystring = require('querystring')
-const fetch = require('node-fetch')
 const encodeFormData = require('form-urlencoded');
+
+var fetch = fetch
+if (typeof(fetch) === 'undefined') {
+    var nodeFetch = 'node-fetch';
+    fetch = require(nodeFetch);
+}
 
 module.exports = {
     /**
